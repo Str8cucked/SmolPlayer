@@ -1,11 +1,13 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import tkinter
-import urllib.request
 import youtube_dl
-import requests
 import os
 import threading
 import time
 import codecs
+from requests import get
 from mutagen.mp3 import MP3
 from pygame import mixer
 from bs4 import BeautifulSoup
@@ -23,30 +25,27 @@ def clean_up():
 
 def update():
     with open("urllist.txt", "r") as f:
-        data = f.read().splitlines(True)
+        data = f.readlines()
     with open("urllist.txt", "w") as f:
         f.writelines(data[1:])
     with codecs.open("songlist.txt", "r", encoding='utf-8') as f:
-        data = f.read().splitlines(True)
+        data = f.readlines()
     with codecs.open("songlist.txt", "w", encoding='utf-8') as f:
         f.writelines(data[1:])
     refresh()
 
 def refresh():
-    f = codecs.open("songlist.txt", "r", encoding="utf-8")
-    songlist = f.read()
-    songTextBox.delete('1.0', 'end')
-    songTextBox.insert('end', songlist)
-    f.close()
+    with open("songlist.txt", "r", encoding='utf-8') as f:
+        songlist = f.read()
+        songTextBox.delete('1.0', 'end')
+        songTextBox.insert('end', songlist)
 
 def clear():
     songTextBox.delete('1.0', 'end')
-    file = open("songlist.txt", "w", encoding="utf-8")
-    file.write('')
-    file.close()
-    file = open("urllist.txt", "w")
-    file.write('')
-    file.close()
+    with open("songlist.txt", "w", encoding="utf-8") as f:
+        f.write('')
+    with open("urllist.txt", "w") as f:
+        f.write('')
 
 def pause():
     global paused
@@ -75,14 +74,21 @@ def play():
     try:
         song = MP3(f'song{ticker}.mp3')
         mixer.init(frequency=song.info.sample_rate, size=16, channels=2, buffer=4096)
+        total = song.info.length
+        total = round(total)
+        musicScrubber.config(to=total)
+        mins, secs = divmod(total, 60)
+        mins = round(mins)
+        secs = round(secs)
+        timeformat = '{:02d}:{:02d}'.format(mins, secs)
+        durationLabel.config(text = timeformat)
         volume = int(volumeScale.get())/100
         mixer.music.set_volume(volume)
         mixer.music.load(f'song{ticker}.mp3')
         mixer.music.play()
         nowPlayingLabel.config(text= f'Now Playing: {nowPlaying}')
-        file = open("nowplaying.txt", "w", encoding='utf-8')
-        file.write(nowPlaying)
-        file.close()
+        with open("nowplaying.txt", "w", encoding='utf-8') as f:
+            f.write(nowPlaying)
         try:
             os.remove(f'song{ticker - 1}.mp3')
         except:
@@ -101,23 +107,13 @@ def play():
 
 def scrubber():
     global ticker
-    song = MP3(f'song{ticker}.mp3')
-    total = song.info.length
-    total = round(total)
-    musicScrubber.config(to=total)
-    mins, secs = divmod(total, 60)
-    mins = round(mins)
-    secs = round(secs)
-    timeformat = '{:02d}:{:02d}'.format(mins, secs)
-    durationLabel.config(text = timeformat)
     update()
     ticker += 1
     t3 = threading.Thread(target=download)
     t3.start()
     while mixer.music.get_busy():
         time.sleep(1)
-        amount = mixer.music.get_pos()
-        amount = amount // 1000
+        amount = mixer.music.get_pos() // 1000
         musicScrubber.set(amount)
     mixer.quit()
     t1 = threading.Thread(target=play)
@@ -139,7 +135,6 @@ def download():
                 skipButton.config(state='normal')
         else:
             skipButton.config(state='normal')
-            paused = False
             while mixer.music.get_busy():
                 time.sleep(5)
                 with open("urllist.txt", "r") as f:
@@ -149,6 +144,7 @@ def download():
                     break
                 else:
                     pass
+            paused = False
             playButton.config(state='normal')
 
     except:
@@ -162,34 +158,40 @@ def add(event=None):
     ydl_opts = {}
     if url.startswith('https://www.youtube.com/'):
         if 'playlist' in url:
-            playlist = requests.get(url).text
-            soup = BeautifulSoup(playlist, 'html.parser')
+            playlist = get(url).text
+            soup = BeautifulSoup(playlist, 'lxml')
             domain = 'https://www.youtube.com'
             for link in soup.find_all("a", {"dir": "ltr"}):
                 href = link.get('href')
                 if href.startswith('/watch?'):
                     address = (domain + href)
                     address = address.split('&list')[0]
-                    file = open("urllist.txt", "a")
-                    file.write(address + '\n')
-                    file.close()
-                    file = open("songlist.txt", "a", encoding='utf-8')
-                    file.write(f'{link.string.strip()} \n')
-                    file.close()
+                    with open("urllist.txt", "a") as f:
+                        f.write(address + '\n')
+                    with open("songlist.txt", "a", encoding='utf-8') as f:
+                        f.write(f'{link.string.strip()} \n')
             refresh()
         else:
-            file = open("urllist.txt", "a")
-            file.write(url + '\n')
-            file.close()
-            with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                meta = ydl.extract_info(url, download=False)
-                title = meta['title']
-                file = open("songlist.txt", "a", encoding='utf-8')
-                file.write(f'{title} \n')
-                file.close()
-                refresh()
+            url = check(url)
+            with open("urllist.txt", "a") as f:
+                f.write(url + '\n')
+            webpage = get(url).text
+            soup = BeautifulSoup(webpage, 'lxml')
+            title = soup.title.string
+            with open("songlist.txt", "a", encoding='utf-8') as f:
+                f.write(f'{title} \n')
+            refresh()
     else:
         print('Not a valid youtube link')
+
+def check(url):
+    characters = len(url)
+    if characters <= 43:
+        return url
+    else:
+        url = url[:43]
+        print('Video from playlist. Grabbing regular link. If you want to queue a playlist open the playlist page and use that url.')
+        return url
 
 def start():
     global paused
