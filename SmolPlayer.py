@@ -38,9 +38,14 @@ def update():
 
 def refresh():
     with open("songlist.txt", "r", encoding='utf-8') as f:
-        songlist = f.read()
+        songlist = f.readlines()
         songTextBox.delete('1.0', 'end')
-        songTextBox.insert('end', songlist)
+        for line in songlist:
+            try:
+                songTextBox.insert('end', line)
+            except:
+                song = line.encode('unicode_escape')
+                songTextBox.insert('end', f'{song}\n')
 
 def clear():
     songTextBox.delete('1.0', 'end')
@@ -99,13 +104,8 @@ def play():
         t2 = threading.Thread(target=scrubber)
         t2.start()
     except:
-        with open("urllist.txt", "r") as f:
-            url = f.readline().strip()
-        if url:
-            start()
-        else:
-            playButton.config(state='normal')
-            print('No songs in queue')
+        playButton.config(state='normal')
+        print('No songs in queue')
 
 def scrubber():
     global ticker
@@ -128,14 +128,19 @@ def download():
     skipButton.config(state='disabled')
     with open("urllist.txt", "r") as f:
         url = f.readline().strip()
-    try:
-        if url:
+    if url:
+        try:
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                 meta = ydl.extract_info(url, download=True)
                 title = meta['title']
                 nowPlaying = title
                 skipButton.config(state='normal')
-        else:
+        except:
+            update()
+            t3 = threading.Thread(target=download)
+            t3.start()
+    else:
+        try:
             while mixer.music.get_busy():
                 skipButton.config(state='normal')
                 time.sleep(5)
@@ -148,43 +153,54 @@ def download():
                     pass
             paused = False
             playButton.config(state='normal')
-
-    except:
-        update()
-        t3 = threading.Thread(target=download)
-        t3.start()
+        except:
+            pass
 
 def add(event=None):
     url = urlTextBox.get()
     urlTextBox.delete(0, 'end')
-    ydl_opts = {}
     if url.startswith('https://www.youtube.com/') or url.startswith('https://youtu.be'):
         if 'playlist' in url:
             playlist = get(url).text
             soup = BeautifulSoup(playlist, 'lxml')
             domain = 'https://www.youtube.com'
-            for link in soup.find_all("a", {"dir": "ltr"}):
+            for link in soup.find_all('a', {'dir': 'ltr'}):
                 href = link.get('href')
                 if href.startswith('/watch?'):
                     address = (domain + href)
                     address = address.split('&list')[0]
                     with open("urllist.txt", "a") as f:
-                        f.write(address + '\n')
+                        f.write(f'{address}\n')
                     with open("songlist.txt", "a", encoding='utf-8') as f:
-                        f.write(f'{link.string.strip()} \n')
+                        f.write(f'{link.string.strip()}\n')
             refresh()
         else:
             url = check(url)
             with open("urllist.txt", "a") as f:
-                f.write(url + '\n')
+                f.write(f'{url}\n')
             webpage = get(url).text
             soup = BeautifulSoup(webpage, 'lxml')
             title = soup.title.string
             with open("songlist.txt", "a", encoding='utf-8') as f:
-                f.write(f'{title} \n')
+                f.write(f'{title}\n')
             refresh()
     else:
-        print('Not a valid youtube link')
+        query = url.replace(' ', '+')
+        searchVideo = get(f'https://www.youtube.com/results?search_query={query}').text
+        soup = BeautifulSoup(searchVideo, 'lxml')
+        for vid in soup.findAll('a', {'class':'yt-uix-tile-link'}, limit=5):
+            if '/watch?v=' in vid['href']:
+                song = 'https://www.youtube.com' + vid['href']
+                url = check(song)
+                title = vid['title']
+                with open("urllist.txt", "a") as f:
+                    f.write(f'{url}\n')
+                with open("songlist.txt", "a", encoding='utf-8') as f:
+                    f.write(f'{title}\n')
+                refresh()
+                break
+            else:
+                pass
 
 def check(url):
     characters = len(url)
