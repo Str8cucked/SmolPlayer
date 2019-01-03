@@ -105,10 +105,15 @@ def play():
         playButton.config(state='disabled')
         t2 = threading.Thread(target=scrubber)
         t2.start()
-    except Exception as error:
-        print(error)
-        playButton.config(state='normal')
-        print('No songs in queue')
+    except:
+        with open("urllist.txt", "r") as f:
+            url = f.readline().strip()
+        if url:
+            t3 = threading.Thread(target=download)
+            t3.start()
+        else:
+            playButton.config(state='normal')
+            print('No songs in queue')
 
 def scrubber():
     global ticker
