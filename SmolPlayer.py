@@ -7,10 +7,12 @@ import os
 import threading
 import time
 import codecs
+import contextlib
 from requests import get
 from mutagen.mp3 import MP3
-from pygame import mixer
 from bs4 import BeautifulSoup
+with contextlib.redirect_stdout(None):
+    from pygame import mixer
 
 ticker = 0
 paused = False
