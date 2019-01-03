@@ -136,8 +136,8 @@ def download():
                 nowPlaying = title
                 skipButton.config(state='normal')
         else:
-            skipButton.config(state='normal')
             while mixer.music.get_busy():
+                skipButton.config(state='normal')
                 time.sleep(5)
                 with open("urllist.txt", "r") as f:
                     url = f.readline().strip()
@@ -158,7 +158,7 @@ def add(event=None):
     url = urlTextBox.get()
     urlTextBox.delete(0, 'end')
     ydl_opts = {}
-    if url.startswith('https://www.youtube.com/'):
+    if url.startswith('https://www.youtube.com/') or url.startswith('https://youtu.be'):
         if 'playlist' in url:
             playlist = get(url).text
             soup = BeautifulSoup(playlist, 'lxml')
