@@ -93,23 +93,30 @@ def play():
         mixer.music.set_volume(volume)
         mixer.music.load(f'song{ticker}.mp3')
         mixer.music.play()
-        nowPlayingLabel.config(text= f'Now Playing: {nowPlaying}')
-        with open("nowplaying.txt", "w", encoding='utf-8') as f:
-            f.write(nowPlaying)
         try:
-            os.remove(f'song{ticker - 1}.mp3')
+            nowPlayingLabel.config(text= f'Now Playing: {nowPlaying}')
+            with open("nowplaying.txt", "w", encoding='utf-8') as f:
+                f.write(nowPlaying)
         except:
-            pass
+            nowPlaying = nowPlaying.encode('unicode_escape')
+            nowPlayingLabel.config(text= f'Now Playing: {nowPlaying}')
+            with open("nowplaying.txt", "w", encoding='utf-8') as f:
+                f.write(str(nowPlaying))
         playButton.config(state='disabled')
         t2 = threading.Thread(target=scrubber)
         t2.start()
-    except:
+    except Exception as error:
+        print(error)
         playButton.config(state='normal')
         print('No songs in queue')
 
 def scrubber():
     global ticker
     update()
+    try:
+        os.remove(f'song{ticker - 1}.mp3')
+    except:
+        pass
     ticker += 1
     t3 = threading.Thread(target=download)
     t3.start()
