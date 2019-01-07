@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import tkinter
@@ -47,7 +47,7 @@ def update():
 def refresh():
     with open("songlist.txt", "r", encoding='utf-8') as f:
         songlist = f.readlines()
-        songTextBox.delete('1.0', 'end')
+        songTextBox.delete(0, 'end')
         for line in songlist:
             try:
                 songTextBox.insert('end', line)
@@ -56,7 +56,7 @@ def refresh():
                 songTextBox.insert('end', f'{song}\n')
 
 def clear():
-    songTextBox.delete('1.0', 'end')
+    songTextBox.delete(0, 'end')
     with open("songlist.txt", "w", encoding="utf-8") as f:
         f.write('')
     with open("urllist.txt", "w") as f:
@@ -184,7 +184,7 @@ def download():
 def add(event=None):
     url = urlTextBox.get()
     urlTextBox.delete(0, 'end')
-    if url.startswith('https://www.youtube.com/') or url.startswith('https://youtu.be'):
+    if url.startswith('https://www.youtube.com/') or url.startswith('https://youtu.be') or url.startswith('https://m.youtube.com'):
         if 'playlist' in url:
             playlist = get(url).text
             soup = BeautifulSoup(playlist, 'lxml')
@@ -230,7 +230,7 @@ def add(event=None):
 def add_next(event=None):
     url = urlTextBox.get()
     urlTextBox.delete(0, 'end')
-    if url.startswith('https://www.youtube.com/') or url.startswith('https://youtu.be'):
+    if url.startswith('https://www.youtube.com/') or url.startswith('https://youtu.be') or url.startswith('https://m.youtube.com'):
         if 'playlist' in url:
             playlist = get(url).text
             soup = BeautifulSoup(playlist, 'lxml')
@@ -317,6 +317,23 @@ def start():
         t1 = threading.Thread(target=play)
         t1.start()
 
+def del_song():
+    selected = songTextBox.curselection()
+    songTextBox.delete(selected)
+    selected = int(selected[0])
+    with open("songlist.txt", "r", encoding='utf-8') as f:
+        data = f.readlines()
+        data.pop(selected)
+        data = ''.join(data)
+    with open("songlist.txt", "w", encoding='utf-8') as f:
+        f.write(data)
+    with open("urllist.txt", "r") as f:
+        data = f.readlines()
+        data.pop(selected)
+        data = ''.join(data)
+    with open("urllist.txt", "w") as f:
+        f.write(data)
+
 window = tkinter.Tk()
 width = window.winfo_screenwidth()
 height = window.winfo_screenheight()
@@ -332,11 +349,12 @@ skipButton = tkinter.Button(window, text = 'Skip', width=10, command = skip)
 skipButton.place(x=210,y=5)
 tkinter.Button(window, text = 'Add', width=5, command = add).place(x=685,y=72)
 tkinter.Button(window, text = 'Next', width=5, command = add_next).place(x=685,y=102)
+tkinter.Button(window, text = 'Delete', width=5, command = del_song).place(x=685,y=132)
 tkinter.Button(window, text = 'Clear', width=10, command = clear).place(x=295,y=5)
-volumeScale = tkinter.Scale(window, from_=100, to=0, orient='vertical', bg='black', fg = 'pink', borderwidth=0, highlightbackground='black', length=532, command=set_vol)
-volumeScale.place(x=690,y=135)
+volumeScale = tkinter.Scale(window, from_=100, to=0, orient='vertical', bg='black', fg = 'pink', borderwidth=0, highlightbackground='black', length=497, command=set_vol)
+volumeScale.place(x=690,y=165)
 volumeScale.set(25)
-songTextBox = tkinter.Text(window, width=105, height=40, font = ("Ariel", 8))
+songTextBox = tkinter.Listbox(window, width=105, height=37, font = ("Ariel", 8))
 songTextBox.place(x=40,y=105)
 urlTextBox = tkinter.Entry(window, width=105, font = ("Ariel", 8))
 urlTextBox.place(x=40,y=75)
