@@ -8,7 +8,6 @@ import threading
 import time
 import codecs
 import contextlib
-import fileinput
 from requests import get
 from mutagen.mp3 import MP3
 from bs4 import BeautifulSoup
