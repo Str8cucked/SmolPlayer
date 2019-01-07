@@ -8,6 +8,7 @@ import threading
 import time
 import codecs
 import contextlib
+import fileinput
 from requests import get
 from mutagen.mp3 import MP3
 from bs4 import BeautifulSoup
@@ -17,6 +18,14 @@ with contextlib.redirect_stdout(None):
 ticker = 0
 paused = False
 nowPlaying = ''
+songPosition = 0
+
+def set_scrub(amount):
+    global songPosition
+    mixer.music.rewind()
+    mixer.music.set_pos(amount)
+    songPosition = amount
+    musicScrubber.set(songPosition)
 
 def clean_up():
     directory = os.getcwd()
@@ -117,6 +126,8 @@ def play():
 
 def scrubber():
     global ticker
+    global songPosition
+    global paused
     update()
     try:
         os.remove(f'song{ticker - 1}.mp3')
@@ -126,9 +137,11 @@ def scrubber():
     t3 = threading.Thread(target=download)
     t3.start()
     while mixer.music.get_busy():
-        time.sleep(1)
-        amount = mixer.music.get_pos() // 1000
-        musicScrubber.set(amount)
+        if paused == False:
+            songPosition += 1
+            musicScrubber.set(songPosition)
+            time.sleep(1)
+    songPosition = 0
     mixer.quit()
     t1 = threading.Thread(target=play)
     t1.start()
@@ -155,7 +168,7 @@ def download():
         try:
             while mixer.music.get_busy():
                 skipButton.config(state='normal')
-                time.sleep(5)
+                time.sleep(1)
                 with open("urllist.txt", "r") as f:
                     url = f.readline().strip()
                 if url:
@@ -164,7 +177,8 @@ def download():
                 else:
                     pass
             paused = False
-            playButton.config(state='normal')
+            if mixer.music.get_busy() == False:
+                playButton.config(state='normal')
         except:
             pass
 
@@ -214,6 +228,76 @@ def add(event=None):
             else:
                 pass
 
+def add_next(event=None):
+    url = urlTextBox.get()
+    urlTextBox.delete(0, 'end')
+    if url.startswith('https://www.youtube.com/') or url.startswith('https://youtu.be'):
+        if 'playlist' in url:
+            playlist = get(url).text
+            soup = BeautifulSoup(playlist, 'lxml')
+            domain = 'https://www.youtube.com'
+            for link in soup.find_all('a', {'dir': 'ltr'}):
+                href = link.get('href')
+                if href.startswith('/watch?'):
+                    address = (domain + href)
+                    address = address.split('&list')[0]
+                    with open("urllist.txt", "r") as f:
+                        data = f.readlines()
+                        data.insert(1, f'{address}\n')
+                        data = ''.join(data)
+                    with open("urllist.txt", "w") as f:
+                        f.write(data)
+                    with open("songlist.txt", "r", encoding='utf-8') as f:
+                        data = f.readlines()
+                        data.insert(1, f'{link.string.strip()}\n')
+                        data = ''.join(data)
+                    with open("songlist.txt", "w", encoding='utf-8') as f:
+                        f.write(data)
+            refresh()
+        else:
+            url = check(url)
+            with open("urllist.txt", "r") as f:
+                data = f.readlines()
+                data.insert(1, f'{url}\n')
+                data = ''.join(data)
+            with open("urllist.txt", "w") as f:
+                f.write(data)
+            webpage = get(url).text
+            soup = BeautifulSoup(webpage, 'lxml')
+            title = soup.title.string
+            with open("songlist.txt", "r", encoding='utf-8') as f:
+                data = f.readlines()
+                data.insert(1, f'{title}\n')
+                data = ''.join(data)
+            with open("songlist.txt", "w", encoding='utf-8') as f:
+                f.write(data)
+            refresh()
+    else:
+        query = url.replace(' ', '+')
+        searchVideo = get(f'https://www.youtube.com/results?search_query={query}').text
+        soup = BeautifulSoup(searchVideo, 'lxml')
+        for vid in soup.findAll('a', {'class':'yt-uix-tile-link'}, limit=5):
+            if '/watch?v=' in vid['href']:
+                song = 'https://www.youtube.com' + vid['href']
+                url = check(song)
+                title = vid['title']
+                with open("urllist.txt", "r") as f:
+                    data = f.readlines()
+                    data.insert(1, f'{url}\n')
+                    data = ''.join(data)
+                with open("urllist.txt", "w") as f:
+                    f.write(data)
+                with open("songlist.txt", "r", encoding='utf-8') as f:
+                    data = f.readlines()
+                    data.insert(1, f'{title}\n')
+                    data = ''.join(data)
+                with open("songlist.txt", "w", encoding='utf-8') as f:
+                    f.write(data)
+                refresh()
+                break
+            else:
+                pass
+
 def check(url):
     characters = len(url)
     if characters <= 43:
@@ -240,6 +324,7 @@ height = window.winfo_screenheight()
 window.title('Smol Player')
 window.configure(background = 'black')
 musicScrubber = tkinter.Scale(window, from_=0, to=100, orient='horizontal', bg='black', width=5, fg = 'black', borderwidth=0, highlightbackground='black', length=635)
+musicScrubber.bind('<ButtonRelease-1>', lambda x: set_scrub(musicScrubber.get()))
 musicScrubber.place(x=38,y=40)
 playButton = tkinter.Button(window, text = 'Play', width=10, command = start)
 playButton.place(x=40,y=5)
@@ -247,9 +332,10 @@ tkinter.Button(window, text = 'Pause', width=10, command = pause).place(x=125,y=
 skipButton = tkinter.Button(window, text = 'Skip', width=10, command = skip)
 skipButton.place(x=210,y=5)
 tkinter.Button(window, text = 'Add', width=5, command = add).place(x=685,y=72)
+tkinter.Button(window, text = 'Next', width=5, command = add_next).place(x=685,y=102)
 tkinter.Button(window, text = 'Clear', width=10, command = clear).place(x=295,y=5)
-volumeScale = tkinter.Scale(window, from_=100, to=0, orient='vertical', bg='black', fg = 'pink', label='Volume', borderwidth=0, highlightbackground='black', length=558, command=set_vol)
-volumeScale.place(x=690,y=105)
+volumeScale = tkinter.Scale(window, from_=100, to=0, orient='vertical', bg='black', fg = 'pink', borderwidth=0, highlightbackground='black', length=532, command=set_vol)
+volumeScale.place(x=690,y=135)
 volumeScale.set(25)
 songTextBox = tkinter.Text(window, width=105, height=40, font = ("Ariel", 8))
 songTextBox.place(x=40,y=105)
