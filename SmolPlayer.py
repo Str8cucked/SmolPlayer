@@ -262,10 +262,13 @@ class SmolPlayer():
             return False
 
     def paste(self, event=None):
-        self.clipboard = self.window.clipboard_get()
-        self.urlEntry.insert(0, self.clipboard)
-        self.window.clipboard_clear()
-        self.add()
+        try:
+            self.clipboard = self.window.clipboard_get()
+            self.urlEntry.insert(0, self.clipboard)
+            self.window.clipboard_clear()
+            self.add()
+        except:
+            print('Clipboard Empty')
 
     def clear(self):
         isBusy = self.check_mixer()
@@ -318,10 +321,12 @@ class SmolPlayer():
             t1.start()
 
     def download(self):
+        youtube_dl.utils.std_headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:64.0) Gecko/20100101 Firefox/64.0'
         ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': f'song{self.ticker}.%(ext)s',
-        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
+        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
+        'opts': ['--rm-cache-dir']
         }
         self.skipButton.config(state='disabled')
         with open('urllist.txt', 'r') as f:
