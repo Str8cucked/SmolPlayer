@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import pafy
 import tkinter
-import youtube_dl
 import os
 import threading
 import time
 import codecs
 import contextlib
 from requests import get
-from mutagen.mp3 import MP3
 from bs4 import BeautifulSoup
 with contextlib.redirect_stdout(None):
-    from pygame import mixer
+    import vlc
 
 class SmolPlayer():
     def __init__(self):
+        directory = os.getcwd()
+        os.chdir(directory)
         self.ticker = 0
         self.paused = False
         self.nowPlaying = ''
         self.songPosition = 0
+        self.player = ''
+        self.volume = 50
         self.window = tkinter.Tk()
         self.window.title('Smol Player')
         self.window.configure(background = 'black')
@@ -39,8 +42,8 @@ class SmolPlayer():
         self.skipButton.place(x=210,y=5)
         self.volumeScale = tkinter.Scale(self.window, from_=100, to=0, orient='vertical', bg='black', fg = 'pink', borderwidth=0, highlightbackground='black', length=497, command= self.set_volume)
         self.volumeScale.place(x=690,y=165)
-        self.volumeScale.set(25)
-        self.musicScrubber = tkinter.Scale(self.window, from_=0, to=100, orient='horizontal', bg='black', width=5, fg = 'black', borderwidth=0, highlightbackground='black', length=635)
+        self.volumeScale.set(50)
+        self.musicScrubber = tkinter.Scale(self.window, from_=0.0, to=1.0, resolution=0.0001, orient='horizontal', bg='black', width=5, fg = 'black', borderwidth=0, highlightbackground='black', length=635)
         self.musicScrubber.place(x=38,y=40)
         self.queueBox = tkinter.Listbox(self.window, width=105, height=37, font = ("Ariel", 8))
         self.queueBox.place(x=40,y=105)
@@ -55,9 +58,90 @@ class SmolPlayer():
         self.urlEntry.bind('<Return>', self.add)
         self.urlEntry.bind('<ButtonRelease-3>', self.paste)
 
-        self.clean_up()
         self.refresh()
+        self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.window.mainloop()
+
+    def start(self):
+        if self.paused == True:
+            self.paused = False
+            self.player.set_pause(0)
+            self.playButton.config(state='disabled')
+        else:
+            t1 = threading.Thread(target=self.play)
+            t1.start()
+
+    def play(self):
+        with open('urllist.txt', 'r') as f:
+            url = f.readline().strip()
+        if url:
+            try:
+                video = pafy.new(url)
+                best = video.getbest()
+                playurl = best.url
+                Instance = vlc.Instance('--novideo')
+                self.player = Instance.media_player_new()
+                Media = Instance.media_new(playurl)
+                Media.get_mrl()
+                self.player.set_media(Media)
+                self.player.play()
+                self.player.audio_set_volume(int(self.volume))
+                self.nowPlaying = video.title
+                self.durationLabel.config(text = video.duration)
+                h, m, s = video.duration.split(':')
+                duration = int(h) * 3600 + int(m) * 60 + int(s)
+                ticker = 1 / duration
+                try:
+                    self.nowPlayingLabel.config(text=f'Now Playing: {self.nowPlaying}')
+                    with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
+                        f.write(self.nowPlaying)
+                except:
+                    self.nowPlaying = nowPlaying.encode('unicode_escape')
+                    self.nowPlayingLabel.config(text=f'Now Playing: {self.nowPlaying}')
+                    with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
+                        f.write(str(self.nowPlaying))
+                self.update()
+                self.playButton.config(state='disabled')
+                time.sleep(3)
+                self.songPosition = self.player.get_position()
+                while self.player.get_state() == vlc.State.Playing or self.player.get_state() == vlc.State.Paused:
+                    if self.paused == False:
+                        self.songPosition += ticker
+                        self.musicScrubber.set(self.songPosition)
+                        time.sleep(1)
+                self.songPosition = 0
+                self.musicScrubber.set(self.songPosition)
+                self.player.stop()
+                self.play()
+            except:
+                self.update()
+                self.play()
+        else:
+            self.playButton.config(state='normal')
+
+    def pause(self):
+        if self.player.get_state() == vlc.State.Playing:
+            self.player.set_pause(1)
+            self.paused = True
+            self.playButton.config(state='normal')
+        else:
+            pass
+
+
+    def set_volume(self, amount):
+        try:
+            self.player.audio_set_volume(int(amount))
+            self.volume = amount
+        except:
+            pass
+
+    def set_scrubber(self, amount):
+        self.player.set_position(amount)
+        self.songPosition = amount
+
+    def skip(self):
+        self.player.stop()
+        self.paused = False
 
     def add(self, event=None):
         url = self.urlEntry.get()
@@ -114,13 +198,13 @@ class SmolPlayer():
                         url = ('https://www.youtube.com' + vid['href']).split('&list')[0]
                         with open("urllist.txt", "r") as f:
                             data = f.readlines()
-                            data.insert(1, f'{url}\n')
+                            data.insert(0, f'{url}\n')
                             data = ''.join(data)
                         with open("urllist.txt", "w") as f:
                             f.write(data)
                         with open("songlist.txt", "r", encoding='utf-8') as f:
                             data = f.readlines()
-                            data.insert(1, f'{vid.string.strip()}\n')
+                            data.insert(0, f'{vid.string.strip()}\n')
                             data = ''.join(data)
                         with open("songlist.txt", "w", encoding='utf-8') as f:
                             f.write(data)
@@ -132,13 +216,13 @@ class SmolPlayer():
                 title = soup.title.string
                 with open("urllist.txt", "r") as f:
                     data = f.readlines()
-                    data.insert(1, f'{url}\n')
+                    data.insert(0, f'{url}\n')
                     data = ''.join(data)
                 with open("urllist.txt", "w") as f:
                     f.write(data)
                 with open("songlist.txt", "r", encoding='utf-8') as f:
                     data = f.readlines()
-                    data.insert(1, f'{title}\n')
+                    data.insert(0, f'{title}\n')
                     data = ''.join(data)
                 with open("songlist.txt", "w", encoding='utf-8') as f:
                     f.write(data)
@@ -154,13 +238,13 @@ class SmolPlayer():
                     url = self.check(url)
                     with open("urllist.txt", "r") as f:
                         data = f.readlines()
-                        data.insert(1, f'{url}\n')
+                        data.insert(0, f'{url}\n')
                         data = ''.join(data)
                     with open("urllist.txt", "w") as f:
                         f.write(data)
                     with open("songlist.txt", "r", encoding='utf-8') as f:
                         data = f.readlines()
-                        data.insert(1, f'{title}\n')
+                        data.insert(0, f'{title}\n')
                         data = ''.join(data)
                     with open("songlist.txt", "w", encoding='utf-8') as f:
                         f.write(data)
@@ -197,69 +281,26 @@ class SmolPlayer():
             return url
         else:
             url = url[:43]
-            print('Video from playlist. Grabbing regular link. If you want to queue a playlist use the playlist page url.')
             return url
 
-    def set_volume(self, amount):
-        volume = int(amount)/100
-        try:
-            mixer.music.set_volume(volume)
-        except:
-            pass
-
-    def set_scrubber(self, amount):
-        mixer.music.rewind()
-        mixer.music.set_pos(amount)
-        self.musicScrubber.set(amount)
-        self.songPosition = amount
 
     def delete_song(self):
-        isBusy = self.check_mixer()
         selected = self.queueBox.curselection()
-        if isBusy:
-            selected = int(selected[0])
-            if selected == 0:
-                return
-            else:
-                selected = self.queueBox.curselection()
-                self.queueBox.delete(selected)
-                selected = int(selected[0])
-                with open("songlist.txt", "r", encoding='utf-8') as f:
-                    data = f.readlines()
-                    data.pop(selected)
-                    data = ''.join(data)
-                with open("songlist.txt", "w", encoding='utf-8') as f:
-                    f.write(data)
-                with open("urllist.txt", "r") as f:
-                    data = f.readlines()
-                    data.pop(selected)
-                    data = ''.join(data)
-                with open("urllist.txt", "w") as f:
-                    f.write(data)
-        else:
-            self.queueBox.delete(selected)
-            selected = int(selected[0])
-            with open("songlist.txt", "r", encoding='utf-8') as f:
-                data = f.readlines()
-                data.pop(selected)
-                data = ''.join(data)
-            with open("songlist.txt", "w", encoding='utf-8') as f:
-                f.write(data)
-            with open("urllist.txt", "r") as f:
-                data = f.readlines()
-                data.pop(selected)
-                data = ''.join(data)
-            with open("urllist.txt", "w") as f:
-                f.write(data)
+        self.queueBox.delete(selected)
+        selected = int(selected[0])
+        with open("songlist.txt", "r", encoding='utf-8') as f:
+            data = f.readlines()
+            data.pop(selected)
+            data = ''.join(data)
+        with open("songlist.txt", "w", encoding='utf-8') as f:
+            f.write(data)
+        with open("urllist.txt", "r") as f:
+            data = f.readlines()
+            data.pop(selected)
+            data = ''.join(data)
+        with open("urllist.txt", "w") as f:
+            f.write(data)
 
-    def check_mixer(self):
-        try:
-            if mixer.music.get_busy():
-                return True
-            else:
-                return False
-        except:
-            return False
 
     def paste(self, event=None):
         try:
@@ -268,149 +309,21 @@ class SmolPlayer():
             self.window.clipboard_clear()
             self.add()
         except:
-            print('Clipboard Empty')
+            pass
 
     def clear(self):
-        isBusy = self.check_mixer()
-        if isBusy:
-            self.queueBox.delete(1, 'end')
-            with open("urllist.txt", "r") as f:
-                data = f.readline()
-                data = ''.join(data)
-            with open("urllist.txt", "w") as f:
-                f.write(data)
-            with open("songlist.txt", "r", encoding='utf-8') as f:
-                data = f.readline()
-                data = ''.join(data)
-            with open("songlist.txt", "w", encoding='utf-8') as f:
-                f.write(data)
-        else:
-            self.queueBox.delete(0, 'end')
-            with open("songlist.txt", "w", encoding="utf-8") as f:
-                f.write('')
-            with open("urllist.txt", "w") as f:
-                f.write('')
+        self.queueBox.delete(0, 'end')
+        with open("songlist.txt", "w", encoding="utf-8") as f:
+            f.write('')
+        with open("urllist.txt", "w") as f:
+            f.write('')
 
-    def pause(self):
-        if mixer.music.get_busy():
-            mixer.music.pause()
-            self.paused = True
-            self.playButton.config(state='normal')
-        else:
-            pass
-
-    def skip(self):
-        mixer.music.stop()
-        self.paused = False
-
-    def clean_up(self):
-        directory = os.getcwd()
-        folder = os.listdir(directory)
-        for file in folder:
-            if file.endswith('.mp3'):
-                os.remove(file)
-
-    def start(self):
-        if self.paused:
-            self.paused = False
-            mixer.music.unpause()
-            self.playButton.config(state='disabled')
-        else:
-            self.download()
-            t1 = threading.Thread(target=self.play)
-            t1.start()
-
-    def download(self):
-        youtube_dl.utils.std_headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:64.0) Gecko/20100101 Firefox/64.0'
-        ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': f'song{self.ticker}.%(ext)s',
-        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
-        'opts': ['--rm-cache-dir']
-        }
-        self.skipButton.config(state='disabled')
-        with open('urllist.txt', 'r') as f:
-            url = f.readline().strip()
-        if url:
-            try:
-                with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    self.nowPlaying = info['title']
-                    self.skipButton.config(state='normal')
-            except:
-                self.update()
-                t3 = threading.Thread(target=self.download)
-                t3.start()
-        else:
-            try:
-                if mixer.music.get_busy():
-                    self.skipButton.config(state='normal')
-                while mixer.music.get_busy():
-                    time.sleep(1)
-                    with open('urllist.txt', 'r') as f:
-                        url = f.readline().strip()
-                    if url:
-                        self.download()
-                        break
-                    else:
-                        pass
-                self.paused = False
-                if mixer.music.get_busy() == False:
-                    playButton.config(state='normal')
-            except:
-                pass
-
-    def play(self):
+    def on_closing(self):
         try:
-            self.playButton.config(state='disabled')
-            song = MP3(f'song{self.ticker}.mp3')
-            songSampleRate = song.info.sample_rate
-            songDuration = round(song.info.length)
-            mins, secs = divmod(songDuration, 60)
-            mins = round(mins)
-            secs = round(secs)
-            timeFormat = '{:02d}:{:02d}'.format(mins, secs)
-            volume = int(self.volumeScale.get())/100
-            self.durationLabel.config(text=timeFormat)
-            self.musicScrubber.config(to=songDuration)
-            mixer.init(frequency=songSampleRate, size=16, channels=2, buffer=4096)
-            mixer.music.set_volume(volume)
-            mixer.music.load(f'song{self.ticker}.mp3')
-            mixer.music.play()
-            try:
-                self.nowPlayingLabel.config(text=f'Now Playing: {self.nowPlaying}')
-                with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
-                    f.write(self.nowPlaying)
-            except:
-                self.nowPlaying = nowPlaying.encode('unicode_escape')
-                self.nowPlayingLabel.config(text=f'Now Playing: {self.nowPlaying}')
-                with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
-                    f.write(str(self.nowPlaying))
-            t2 = threading.Thread(target=self.scrubber)
-            t2.start()
+            self.player.stop()
+            self.window.destroy()
         except:
-            print('No songs in queue')
-            self.playButton.config(state='normal')
-
-    def scrubber(self):
-        self.update()
-        try:
-            os.remove(f'song{self.ticker - 1}.mp3')
-        except:
-            pass
-        self.ticker += 1
-        t3 = threading.Thread(target=self.download)
-        t3.start()
-        while mixer.music.get_busy():
-            if self.paused == False:
-                self.songPosition += 1
-                self.musicScrubber.set(self.songPosition)
-                time.sleep(1)
-        mixer.quit()
-        self.songPosition = 0
-        t1 = threading.Thread(target=self.play)
-        t1.start()
-
+            self.window.destroy()
 
 if __name__ == '__main__':
     SmolPlayer()
