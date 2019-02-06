@@ -8,13 +8,16 @@ import threading
 import time
 import codecs
 import contextlib
+import sys
+from tkinter import messagebox
 from requests import get
 from bs4 import BeautifulSoup
 with contextlib.redirect_stdout(None):
     import vlc
 
-class SmolPlayer():
+class SmolPlayer(threading.Thread):
     def __init__(self):
+        super(SmolPlayer, self).__init__()
         directory = os.getcwd()
         os.chdir(directory)
         self.ticker = 0
@@ -23,8 +26,10 @@ class SmolPlayer():
         self.songPosition = 0
         self.player = ''
         self.volume = 50
+        self.showVideo = False
+        self.run = True
         self.window = tkinter.Tk()
-        self.window.title('Smol Player')
+        self.window.title('SmolPlayer')
         self.window.configure(background = 'black')
         self.width, self.height = self.window.winfo_screenwidth(), self.window.winfo_screenheight()
         self.window.geometry('%dx%d+%d+%d' % (800, 700, self.width // 2 - 400, self.height // 2 - 340))
@@ -33,13 +38,16 @@ class SmolPlayer():
         tkinter.Button(self.window, text = 'Pause', width=10, command = self.pause).place(x=125,y=5)
         tkinter.Button(self.window, text = 'Add', width=5, command = self.add).place(x=685,y=72)
         tkinter.Button(self.window, text = 'Next', width=5, command = self.add_next).place(x=685,y=102)
-        tkinter.Button(self.window, text = 'Delete', width=5, command = self.delete_song).place(x=685,y=132)
         tkinter.Button(self.window, text = 'Clear', width=10, command = self.clear).place(x=295,y=5)
 
+        self.showVideoCheck = tkinter.Checkbutton(self.window, text='Show Video (WIP)', bg='black', fg='pink', highlightbackground='black', command = self.allow_video)
+        self.showVideoCheck.place(x=678, y=30)
         self.playButton = tkinter.Button(self.window, text = 'Play', width=10, command = self.start)
         self.playButton.place(x=40,y=5)
         self.skipButton = tkinter.Button(self.window, text = 'Skip', width=10, command = self.skip)
         self.skipButton.place(x=210,y=5)
+        self.deletButton = tkinter.Button(self.window, text = 'Delete', width=5, command = self.delete_song)
+        self.deletButton.place(x=685,y=132)
         self.volumeScale = tkinter.Scale(self.window, from_=100, to=0, orient='vertical', bg='black', fg = 'pink', borderwidth=0, highlightbackground='black', length=497, command= self.set_volume)
         self.volumeScale.place(x=690,y=165)
         self.volumeScale.set(50)
@@ -49,7 +57,7 @@ class SmolPlayer():
         self.queueBox.place(x=40,y=105)
         self.urlEntry = tkinter.Entry(self.window, width=105, font = ("Ariel", 8))
         self.urlEntry.place(x=40,y=75)
-        self.durationLabel = tkinter.Label(self.window, text = '0:0', bg = 'black', fg = 'pink', font = ("Ariel", 8))
+        self.durationLabel = tkinter.Label(self.window, text = '00:00:00', bg = 'black', fg = 'pink', font = ("Ariel", 8))
         self.durationLabel.place(x=680,y=52)
         self.nowPlayingLabel = tkinter.Label(self.window, text = 'Now Playing:', bg = 'black', fg = 'pink', font = ("Ariel", 8))
         self.nowPlayingLabel.place(x=37, y=35)
@@ -57,6 +65,7 @@ class SmolPlayer():
         self.musicScrubber.bind('<ButtonRelease-1>', lambda x: self.set_scrubber(self.musicScrubber.get()))
         self.urlEntry.bind('<Return>', self.add)
         self.urlEntry.bind('<ButtonRelease-3>', self.paste)
+        self.queueBox.bind('<Delete>', self.delete_song)
 
         self.refresh()
         self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -79,7 +88,10 @@ class SmolPlayer():
                 video = pafy.new(url)
                 best = video.getbest()
                 playurl = best.url
-                Instance = vlc.Instance('--novideo')
+                if self.showVideo == False:
+                    Instance = vlc.Instance('--novideo')
+                else:
+                    Instance = vlc.Instance()
                 self.player = Instance.media_player_new()
                 Media = Instance.media_new(playurl)
                 Media.get_mrl()
@@ -94,12 +106,12 @@ class SmolPlayer():
                 try:
                     self.nowPlayingLabel.config(text=f'Now Playing: {self.nowPlaying}')
                     with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
-                        f.write(self.nowPlaying)
+                        f.write(self.nowPlaying + '   ')
                 except:
-                    self.nowPlaying = nowPlaying.encode('unicode_escape')
+                    self.nowPlaying = self.nowPlaying.encode('unicode_escape')
                     self.nowPlayingLabel.config(text=f'Now Playing: {self.nowPlaying}')
                     with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
-                        f.write(str(self.nowPlaying))
+                        f.write(str(self.nowPlaying) + '   ')
                 self.update()
                 self.playButton.config(state='disabled')
                 time.sleep(3)
@@ -109,15 +121,25 @@ class SmolPlayer():
                         self.songPosition += ticker
                         self.musicScrubber.set(self.songPosition)
                         time.sleep(1)
+                    if self.run == False:
+                        self.player.stop()
+                        sys.exit()
                 self.songPosition = 0
                 self.musicScrubber.set(self.songPosition)
                 self.player.stop()
                 self.play()
-            except:
+            except Exception as error:
+                tkinter.messagebox.showwarning(title='Warning', message=error)
                 self.update()
                 self.play()
         else:
             self.playButton.config(state='normal')
+            self.nowPlayingLabel.config(text=f'Now Playing:')
+            with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
+                f.write('No songs playing. Support your local smol gang.   ')
+
+    def allow_video(self):
+        self.showVideo = not self.showVideo
 
     def pause(self):
         if self.player.get_state() == vlc.State.Playing:
@@ -280,11 +302,12 @@ class SmolPlayer():
         if characters <= 43:
             return url
         else:
+            messagebox.showwarning("SmolPlayer", "Song from playlist. If you wanted to add a playlist please use the playlist page url instead.")
             url = url[:43]
             return url
 
 
-    def delete_song(self):
+    def delete_song(self, event=None):
         selected = self.queueBox.curselection()
         self.queueBox.delete(selected)
         selected = int(selected[0])
@@ -318,9 +341,14 @@ class SmolPlayer():
         with open("urllist.txt", "w") as f:
             f.write('')
 
+    def stopped(self):
+        while self._stop_event.is_set() == False:
+            continue
+
     def on_closing(self):
         try:
-            self.player.stop()
+            self.run = False
+            self.player.set_pause(0)
             self.window.destroy()
         except:
             self.window.destroy()
