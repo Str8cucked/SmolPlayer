@@ -150,7 +150,7 @@ class SmolPlayer(threading.Thread):
                 f.write(song)
         with open('urllist.txt', 'w') as f:
             for url in urls:
-                f.writelines(url)
+                f.write(url)
         self.refresh()
 
     def allow_video(self):
