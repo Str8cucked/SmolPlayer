@@ -3,23 +3,22 @@
 
 import pafy
 import tkinter
-import os
 import threading
 import time
 import codecs
-import contextlib
 import sys
+from random import shuffle
+from os import chdir, getcwd
+from vlc import Instance, State
 from tkinter import messagebox
 from requests import get
 from bs4 import BeautifulSoup
-with contextlib.redirect_stdout(None):
-    import vlc
 
 class SmolPlayer(threading.Thread):
     def __init__(self):
         super(SmolPlayer, self).__init__()
-        directory = os.getcwd()
-        os.chdir(directory)
+        directory = getcwd()
+        chdir(directory)
         self.ticker = 0
         self.paused = False
         self.nowPlaying = ''
@@ -38,7 +37,8 @@ class SmolPlayer(threading.Thread):
         tkinter.Button(self.window, text = 'Pause', width=10, command = self.pause).place(x=125,y=5)
         tkinter.Button(self.window, text = 'Add', width=5, command = self.add).place(x=685,y=72)
         tkinter.Button(self.window, text = 'Next', width=5, command = self.add_next).place(x=685,y=102)
-        tkinter.Button(self.window, text = 'Clear', width=10, command = self.clear).place(x=295,y=5)
+        tkinter.Button(self.window, text = 'Shuffle', width=10, command = self.shuffle).place(x=295,y=5)
+        tkinter.Button(self.window, text = 'Clear', width=10, command = self.clear).place(x=380,y=5)
 
         self.showVideoCheck = tkinter.Checkbutton(self.window, text='Show Video (WIP)', bg='black', fg='pink', highlightbackground='black', command = self.allow_video)
         self.showVideoCheck.place(x=678, y=30)
@@ -89,13 +89,12 @@ class SmolPlayer(threading.Thread):
                 best = video.getbest()
                 playurl = best.url
                 if self.showVideo == False:
-                    Instance = vlc.Instance('--novideo')
+                    vInstance = Instance('--novideo')
                 else:
-                    Instance = vlc.Instance()
-                self.player = Instance.media_player_new()
-                Media = Instance.media_new(playurl)
-                Media.get_mrl()
-                self.player.set_media(Media)
+                    vInstance = Instance()
+                self.player = vInstance.media_player_new()
+                media = vInstance.media_new(playurl)
+                self.player.set_media(media)
                 self.player.play()
                 self.player.audio_set_volume(int(self.volume))
                 self.nowPlaying = video.title
@@ -116,7 +115,7 @@ class SmolPlayer(threading.Thread):
                 self.playButton.config(state='disabled')
                 time.sleep(3)
                 self.songPosition = self.player.get_position()
-                while self.player.get_state() == vlc.State.Playing or self.player.get_state() == vlc.State.Paused:
+                while self.player.get_state() == State.Playing or self.player.get_state() == State.Paused:
                     if self.paused == False:
                         self.songPosition += ticker
                         self.musicScrubber.set(self.songPosition)
@@ -136,19 +135,34 @@ class SmolPlayer(threading.Thread):
             self.playButton.config(state='normal')
             self.nowPlayingLabel.config(text=f'Now Playing:')
             with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
-                f.write('No songs playing. Support your local smol gang.   ')
+                f.write('No songs playing. Donate to have your song played on stream.   ')
+
+    def shuffle(self):
+        with open('songlist.txt', 'r', encoding='utf-8') as f:
+            songs = f.readlines()
+        with open('urllist.txt', 'r', encoding='utf-8') as f:
+            urls = f.readlines()
+        combined = list(zip(songs, urls))
+        shuffle(combined)
+        songs[:], urls[:] = zip(*combined)
+        with open('songlist.txt', 'w', encoding='utf-8') as f:
+            for song in songs:
+                f.write(song)
+        with open('urllist.txt', 'w') as f:
+            for url in urls:
+                f.writelines(url)
+        self.refresh()
 
     def allow_video(self):
         self.showVideo = not self.showVideo
 
     def pause(self):
-        if self.player.get_state() == vlc.State.Playing:
+        if self.player.get_state() == State.Playing:
             self.player.set_pause(1)
             self.paused = True
             self.playButton.config(state='normal')
         else:
             pass
-
 
     def set_volume(self, amount):
         try:
