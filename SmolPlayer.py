@@ -25,42 +25,44 @@ class SmolPlayer(threading.Thread):
         self.songPosition = 0
         self.player = ''
         self.volume = 50
-        self.showVideo = False
         self.run = True
         self.window = tkinter.Tk()
         self.window.title('SmolPlayer')
         self.window.configure(background = 'black')
         self.width, self.height = self.window.winfo_screenwidth(), self.window.winfo_screenheight()
-        self.window.geometry('%dx%d+%d+%d' % (800, 700, self.width // 2 - 400, self.height // 2 - 340))
+        self.window.geometry('%dx%d+%d+%d' % (775, 500, self.width // 2 - 400, self.height // 2 - 340))
         self.window.resizable(False, False)
 
-        tkinter.Button(self.window, text = 'Pause', width=10, command = self.pause).place(x=125,y=5)
-        tkinter.Button(self.window, text = 'Add', width=5, command = self.add).place(x=685,y=72)
-        tkinter.Button(self.window, text = 'Next', width=5, command = self.add_next).place(x=685,y=102)
-        tkinter.Button(self.window, text = 'Shuffle', width=10, command = self.shuffle).place(x=295,y=5)
-        tkinter.Button(self.window, text = 'Clear', width=10, command = self.clear).place(x=380,y=5)
+        playImage = tkinter.PhotoImage(file='assets\play.png')
+        pauseImage = tkinter.PhotoImage(file='assets\pause.png')
+        skipImage = tkinter.PhotoImage(file='assets\skip.png')
+        shuffleImage = tkinter.PhotoImage(file='assets\shuffle.png')
 
-        self.showVideoCheck = tkinter.Checkbutton(self.window, text='Show Video (WIP)', bg='black', fg='pink', highlightbackground='black', command = self.allow_video)
-        self.showVideoCheck.place(x=678, y=30)
-        self.playButton = tkinter.Button(self.window, text = 'Play', width=10, command = self.start)
-        self.playButton.place(x=40,y=5)
-        self.skipButton = tkinter.Button(self.window, text = 'Skip', width=10, command = self.skip)
-        self.skipButton.place(x=210,y=5)
+        tkinter.Button(self.window, image = pauseImage, bg='black', relief = 'flat', command = self.pause).place(x=300,y=10)
+        tkinter.Button(self.window, text = 'Add', width=5, command = self.add).place(x=685,y=120)
+        tkinter.Button(self.window, text = 'Next', width=5, command = self.add_next).place(x=685,y=150)
+        tkinter.Button(self.window, image = shuffleImage, bg='black', relief = 'flat', command = self.shuffle).place(x=420,y=10)
+        #tkinter.Button(self.window, text = 'Clear', width=10, command = self.clear).place(x=380,y=5)
+
+        self.playButton = tkinter.Button(self.window, image = playImage, bg='black', relief = 'flat', command = self.start)
+        self.playButton.place(x=240,y=10)
+        self.skipButton = tkinter.Button(self.window, image = skipImage, bg='black', relief = 'flat', command = self.skip)
+        self.skipButton.place(x=360,y=10)
         self.deletButton = tkinter.Button(self.window, text = 'Delete', width=5, command = self.delete_song)
-        self.deletButton.place(x=685,y=132)
-        self.volumeScale = tkinter.Scale(self.window, from_=100, to=0, orient='vertical', bg='black', fg = 'pink', borderwidth=0, highlightbackground='black', length=497, command= self.set_volume)
-        self.volumeScale.place(x=690,y=165)
+        self.deletButton.place(x=685,y=180)
+        self.volumeScale = tkinter.Scale(self.window, from_=100, to=0, orient='vertical', bg = 'black', fg = 'pink', borderwidth=0, highlightbackground='black', length=242, command= self.set_volume)
+        self.volumeScale.place(x=690,y=210)
         self.volumeScale.set(50)
-        self.musicScrubber = tkinter.Scale(self.window, from_=0.0, to=1.0, resolution=0.0001, orient='horizontal', bg='black', width=5, fg = 'black', borderwidth=0, highlightbackground='black', length=635)
-        self.musicScrubber.place(x=38,y=40)
-        self.queueBox = tkinter.Listbox(self.window, width=105, height=37, font = ("Ariel", 8))
-        self.queueBox.place(x=40,y=105)
+        self.musicScrubber = tkinter.Scale(self.window, from_=0.0, to=1.0, resolution=0.0001, orient='horizontal', bg='black', width=5, fg = 'black', borderwidth=0, highlightbackground='black', length=634)
+        self.musicScrubber.place(x=38,y=85)
+        self.queueBox = tkinter.Listbox(self.window, width=105, height=20, font = ("Ariel", 8))
+        self.queueBox.place(x=40,y=150)
         self.urlEntry = tkinter.Entry(self.window, width=105, font = ("Ariel", 8))
-        self.urlEntry.place(x=40,y=75)
+        self.urlEntry.place(x=40,y=120)
         self.durationLabel = tkinter.Label(self.window, text = '00:00:00', bg = 'black', fg = 'pink', font = ("Ariel", 8))
-        self.durationLabel.place(x=680,y=52)
+        self.durationLabel.place(x=630,y=80)
         self.nowPlayingLabel = tkinter.Label(self.window, text = 'Now Playing:', bg = 'black', fg = 'pink', font = ("Ariel", 8))
-        self.nowPlayingLabel.place(x=37, y=35)
+        self.nowPlayingLabel.place(x=37, y=80)
 
         self.musicScrubber.bind('<ButtonRelease-1>', lambda x: self.set_scrubber(self.musicScrubber.get()))
         self.urlEntry.bind('<Return>', self.add)
@@ -88,10 +90,7 @@ class SmolPlayer(threading.Thread):
                 video = pafy.new(url)
                 best = video.getbest()
                 playurl = best.url
-                if self.showVideo == False:
-                    vInstance = Instance('--novideo')
-                else:
-                    vInstance = Instance()
+                vInstance = Instance('--novideo')
                 self.player = vInstance.media_player_new()
                 media = vInstance.media_new(playurl)
                 self.player.set_media(media)
@@ -113,7 +112,7 @@ class SmolPlayer(threading.Thread):
                         f.write(str(self.nowPlaying) + '   ')
                 self.update()
                 self.playButton.config(state='disabled')
-                time.sleep(3)
+                time.sleep(2)
                 self.songPosition = self.player.get_position()
                 while self.player.get_state() == State.Playing or self.player.get_state() == State.Paused:
                     if self.paused == False:
@@ -134,6 +133,7 @@ class SmolPlayer(threading.Thread):
         else:
             self.playButton.config(state='normal')
             self.nowPlayingLabel.config(text=f'Now Playing:')
+            self.durationLabel.config(text = '00:00:00')
             with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
                 f.write('No songs playing. Donate to have your song played on stream.   ')
 
@@ -152,9 +152,6 @@ class SmolPlayer(threading.Thread):
             for url in urls:
                 f.write(url)
         self.refresh()
-
-    def allow_video(self):
-        self.showVideo = not self.showVideo
 
     def pause(self):
         if self.player.get_state() == State.Playing:
