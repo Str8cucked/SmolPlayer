@@ -112,7 +112,7 @@ class SmolPlayer(threading.Thread):
                         f.write(str(self.nowPlaying) + '   ')
                 self.update()
                 self.playButton.config(state='disabled')
-                time.sleep(2)
+                time.sleep(5)
                 self.songPosition = self.player.get_position()
                 while self.player.get_state() == State.Playing or self.player.get_state() == State.Paused:
                     if self.paused == False:
