@@ -40,16 +40,18 @@ class SmolPlayer():
 
         tkinter.Button(self.window, image = pauseImage, bg='black', relief = 'flat', command = self.pause).place(x=300,y=10)
         tkinter.Button(self.window, text = 'Add', width=5, command = self.add).place(x=685,y=120)
-        tkinter.Button(self.window, text = 'Next', width=5, command = self.add_next).place(x=685,y=150)
-        tkinter.Button(self.window, image = shuffleImage, bg='black', relief = 'flat', command = self.shuffle).place(x=420,y=10)
         #tkinter.Button(self.window, text = 'Clear', width=10, command = self.clear).place(x=380,y=5)
 
         self.playButton = tkinter.Button(self.window, image = playImage, bg='black', relief = 'flat', command = self.start)
         self.playButton.place(x=240,y=10)
         self.skipButton = tkinter.Button(self.window, image = skipImage, bg='black', relief = 'flat', command = self.skip)
         self.skipButton.place(x=360,y=10)
-        self.deletButton = tkinter.Button(self.window, text = 'Delete', width=5, command = self.delete_song)
-        self.deletButton.place(x=685,y=180)
+        self.shuffleButton = tkinter.Button(self.window, image = shuffleImage, bg='black', relief = 'flat', command = self.shuffle)
+        self.shuffleButton.place(x=420,y=10)
+        self.nextButton = tkinter.Button(self.window, text = 'Next', width=5, command = self.add_next)
+        self.nextButton.place(x=685,y=150)
+        self.deleteButton = tkinter.Button(self.window, text = 'Delete', width=5, command = self.delete_song)
+        self.deleteButton.place(x=685,y=180)
         self.volumeScale = tkinter.Scale(self.window, from_=100, to=0, orient='vertical', bg = 'black', fg = 'pink', borderwidth=0, highlightbackground='black', length=242, command= self.set_volume)
         self.volumeScale.place(x=690,y=210)
         self.volumeScale.set(50)
@@ -116,15 +118,24 @@ class SmolPlayer():
                         f.write(str(self.nowPlaying) + '   ')
                 self.playButton.config(state='disabled')
                 self.threadLock.release()
-                for i in range(5):
+                self.shuffleButton.config(state='disabled')
+                self.deleteButton.config(state='disabled')
+                self.nextButton.config(state='disabled')
+                for i in range(3):
                     self.songPosition += ticker
                     self.musicScrubber.set(self.songPosition)
                     self.get_time()
                     time.sleep(1)
                 if self.player.get_state() == State.Ended:
+                    self.nowPlayingLabel.config(text='RETRYING CONNECTION')
                     self.play()
                 else:
                     self.update()
+                self.shuffleButton.config(state='normal')
+                self.deleteButton.config(state='normal')
+                self.nextButton.config(state='normal')
+                self.songPosition = ticker * 3
+                self.musicScrubber.set(ticker * 3)
                 while self.player.get_state() == State.Playing or self.player.get_state() == State.Paused:
                     if self.paused == False:
                         self.songPosition += ticker
