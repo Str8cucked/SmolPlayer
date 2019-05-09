@@ -116,7 +116,6 @@ class SmolPlayer():
                         f.write(str(self.nowPlaying) + '   ')
                 self.update()
                 self.playButton.config(state='disabled')
-                self.threadLock.release()
                 for i in range(5):
                     self.songPosition += ticker
                     self.musicScrubber.set(self.songPosition)
@@ -132,6 +131,7 @@ class SmolPlayer():
                     if self.run == False:
                         self.player.stop()
                         sys.exit()
+                self.threadLock.release()
                 self.songPosition = 0
                 self.musicScrubber.set(0)
                 self.player.stop()
