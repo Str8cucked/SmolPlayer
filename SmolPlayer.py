@@ -14,9 +14,8 @@ from tkinter import messagebox
 from requests import get
 from bs4 import BeautifulSoup
 
-class SmolPlayer(threading.Thread):
+class SmolPlayer():
     def __init__(self):
-        super(SmolPlayer, self).__init__()
         directory = getcwd()
         chdir(directory)
         self.ticker = 0
@@ -26,6 +25,7 @@ class SmolPlayer(threading.Thread):
         self.player = ''
         self.volume = 50
         self.run = True
+        self.threadLock = threading.Lock()
         self.window = tkinter.Tk()
         self.window.title('SmolPlayer')
         self.window.configure(background = 'black')
@@ -59,10 +59,12 @@ class SmolPlayer(threading.Thread):
         self.queueBox.place(x=40,y=150)
         self.urlEntry = tkinter.Entry(self.window, width=105, font = ("Ariel", 8))
         self.urlEntry.place(x=40,y=120)
-        self.durationLabel = tkinter.Label(self.window, text = '00:00:00', bg = 'black', fg = 'pink', font = ("Ariel", 8))
-        self.durationLabel.place(x=630,y=80)
         self.nowPlayingLabel = tkinter.Label(self.window, text = 'Now Playing:', bg = 'black', fg = 'pink', font = ("Ariel", 8))
         self.nowPlayingLabel.place(x=37, y=80)
+        self.durationLabel = tkinter.Label(self.window, text = '00:00:00', bg = 'black', fg = 'pink', font = ("Ariel", 8))
+        self.durationLabel.place(x=630,y=80)
+        self.timeLabel = tkinter.Label(self.window, text = '00:00:00 /', bg = 'black', fg = 'pink', font = ("Ariel", 8))
+        self.timeLabel.place(x=580,y=80)
 
         self.musicScrubber.bind('<ButtonRelease-1>', lambda x: self.set_scrubber(self.musicScrubber.get()))
         self.urlEntry.bind('<Return>', self.add)
@@ -80,6 +82,7 @@ class SmolPlayer(threading.Thread):
             self.playButton.config(state='disabled')
         else:
             t1 = threading.Thread(target=self.play)
+            t1.daemon = True
             t1.start()
 
     def play(self):
@@ -87,6 +90,7 @@ class SmolPlayer(threading.Thread):
             url = f.readline().strip()
         if url:
             try:
+                self.threadLock.acquire()
                 video = pafy.new(url)
                 best = video.getbest()
                 playurl = best.url
@@ -112,30 +116,43 @@ class SmolPlayer(threading.Thread):
                         f.write(str(self.nowPlaying) + '   ')
                 self.update()
                 self.playButton.config(state='disabled')
-                time.sleep(5)
+                self.threadLock.release()
+                for i in range(5):
+                    self.songPosition += ticker
+                    self.musicScrubber.set(self.songPosition)
+                    self.get_time()
+                    time.sleep(1)
                 self.songPosition = self.player.get_position()
                 while self.player.get_state() == State.Playing or self.player.get_state() == State.Paused:
                     if self.paused == False:
                         self.songPosition += ticker
                         self.musicScrubber.set(self.songPosition)
+                        self.get_time()
                         time.sleep(1)
                     if self.run == False:
                         self.player.stop()
                         sys.exit()
                 self.songPosition = 0
-                self.musicScrubber.set(self.songPosition)
+                self.musicScrubber.set(0)
                 self.player.stop()
                 self.play()
             except Exception as error:
+                self.threadLock.release()
                 tkinter.messagebox.showwarning(title='Warning', message=error)
                 self.update()
                 self.play()
         else:
             self.playButton.config(state='normal')
-            self.nowPlayingLabel.config(text=f'Now Playing:')
+            self.nowPlayingLabel.config(text = 'Now Playing:')
             self.durationLabel.config(text = '00:00:00')
+            self.timeLabel.config(text = '00:00:00 /')
             with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
                 f.write('No songs playing. Donate to have your song played on stream.   ')
+
+    def get_time(self):
+        vtime = self.player.get_time() // 1000
+        vtime = time.strftime('%H:%M:%S', time.gmtime(vtime))
+        self.timeLabel.config(text = f'{vtime} /')
 
     def shuffle(self):
         with open('songlist.txt', 'r', encoding='utf-8') as f:
@@ -169,8 +186,11 @@ class SmolPlayer(threading.Thread):
             pass
 
     def set_scrubber(self, amount):
-        self.player.set_position(amount)
-        self.songPosition = amount
+        try:
+            self.player.set_position(amount)
+            self.songPosition = amount
+        except:
+            self.musicScrubber.set(0)
 
     def skip(self):
         self.player.stop()
