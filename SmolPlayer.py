@@ -114,14 +114,17 @@ class SmolPlayer():
                     self.nowPlayingLabel.config(text=f'Now Playing: {self.nowPlaying}')
                     with open('nowPlaying.txt', 'w', encoding='utf-8') as f:
                         f.write(str(self.nowPlaying) + '   ')
-                self.update()
                 self.playButton.config(state='disabled')
+                self.threadLock.release()
                 for i in range(5):
                     self.songPosition += ticker
                     self.musicScrubber.set(self.songPosition)
                     self.get_time()
                     time.sleep(1)
-                self.songPosition = self.player.get_position()
+                if self.player.get_state() == State.Ended:
+                    self.play()
+                else:
+                    self.update()
                 while self.player.get_state() == State.Playing or self.player.get_state() == State.Paused:
                     if self.paused == False:
                         self.songPosition += ticker
@@ -131,7 +134,6 @@ class SmolPlayer():
                     if self.run == False:
                         self.player.stop()
                         sys.exit()
-                self.threadLock.release()
                 self.songPosition = 0
                 self.musicScrubber.set(0)
                 self.player.stop()
